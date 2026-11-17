@@ -13,6 +13,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -31,6 +32,7 @@ public class MainActivity extends Activity {
     private int activeTab = -1;
     private static final int MAX_TABS = 6;
     private boolean numberHintsActive = false;
+    private boolean textEntryFocused = false;
     private String numberBuffer = "";
     private final Handler numberHandler = new Handler(Looper.getMainLooper());
     private final Runnable selectNumberRunnable = () -> selectNumberHint();
@@ -155,6 +157,8 @@ public class MainActivity extends Activity {
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
             int key = event.getKeyCode();
+            // Let the website receive keypad input normally while a text field is active.
+            if (textEntryFocused) return super.dispatchKeyEvent(event);
             if (key == KeyEvent.KEYCODE_ENDCALL) {
                 showHome();
                 return true;
@@ -254,6 +258,11 @@ public class MainActivity extends Activity {
             return;
         }
         WebView web = new WebView(this);
+        web.addJavascriptInterface(new Object() {
+            @JavascriptInterface public void setTextEntryFocused(boolean focused) {
+                runOnUiThread(() -> textEntryFocused = focused);
+            }
+        }, "OilamBridge");
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -280,6 +289,7 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override public void onPageFinished(WebView view, String url) {
                 numberHintsActive = false;
+                textEntryFocused = false;
                 numberBuffer = "";
                 numberHandler.removeCallbacks(selectNumberRunnable);
                 super.onPageFinished(view, url);
@@ -289,6 +299,12 @@ public class MainActivity extends Activity {
                     + "m.content='width=device-width, initial-scale=1';document.head.appendChild(m);}"
                     + "}catch(e){}})();";
                 view.evaluateJavascript(script, null);
+                // Track focused search boxes and other editable controls so 0 is typed, not treated as a hint toggle.
+                view.evaluateJavascript("(function(){try{if(window.__oilamFocusTracking)return;window.__oilamFocusTracking=true;"
+                    + "function report(){var e=document.activeElement;var f=!!(e&&(e.matches('input,textarea,select,[contenteditable=true],[role=textbox]')||e.isContentEditable));"
+                    + "if(window.OilamBridge&&OilamBridge.setTextEntryFocused)OilamBridge.setTextEntryFocused(f);}"
+                    + "document.addEventListener('focusin',report,true);document.addEventListener('focusout',function(){setTimeout(report,0);},true);report();"
+                    + "}catch(e){}})();", null);
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String scheme = request.getUrl().getScheme();
