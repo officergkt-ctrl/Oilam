@@ -155,6 +155,15 @@ public class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setLoadsImagesAutomatically(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        // Prefer responsive/mobile layouts and scale desktop pages to the narrow device.
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        web.setHorizontalScrollBarEnabled(false);
+        web.setVerticalScrollBarEnabled(true);
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setWebChromeClient(new WebChromeClient() {
             @Override public void onReceivedTitle(WebView view, String title) {
                 int index = findTab(view);
@@ -165,6 +174,15 @@ public class MainActivity extends Activity {
             }
         });
         web.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // Add a mobile viewport only when a page has not supplied one.
+                String script = "(function(){try{var m=document.querySelector('meta[name=viewport]');"
+                    + "if(!m){m=document.createElement('meta');m.name='viewport';"
+                    + "m.content='width=device-width, initial-scale=1';document.head.appendChild(m);}"
+                    + "}catch(e){}})();";
+                view.evaluateJavascript(script, null);
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String scheme = request.getUrl().getScheme();
                 return !( "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme) );
