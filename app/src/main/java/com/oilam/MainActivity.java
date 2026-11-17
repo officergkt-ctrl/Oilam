@@ -279,6 +279,9 @@ public class MainActivity extends Activity {
         });
         web.setWebViewClient(new WebViewClient() {
             @Override public void onPageFinished(WebView view, String url) {
+                numberHintsActive = false;
+                numberBuffer = "";
+                numberHandler.removeCallbacks(selectNumberRunnable);
                 super.onPageFinished(view, url);
                 // Add a mobile viewport only when a page has not supplied one.
                 String script = "(function(){try{var m=document.querySelector('meta[name=viewport]');"
