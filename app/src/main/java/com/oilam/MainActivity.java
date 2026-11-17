@@ -144,19 +144,39 @@ public class MainActivity extends Activity {
         return tabs.get(activeTab).web;
     }
 
-    // Feature-phone keypad zoom: * zooms out and # zooms in.
+    // Feature-phone keypad shortcuts: 1-9 open Jewish websites; * / # zoom.
+    // End returns to the icon menu; Back keeps normal browser-back behavior.
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            int key = event.getKeyCode();
+            if (key == KeyEvent.KEYCODE_ENDCALL) {
+                showHome();
+                return true;
+            }
+            int siteIndex = -1;
+            switch (key) {
+                case KeyEvent.KEYCODE_1: case KeyEvent.KEYCODE_NUMPAD_1: siteIndex = 0; break;
+                case KeyEvent.KEYCODE_2: case KeyEvent.KEYCODE_NUMPAD_2: siteIndex = 1; break;
+                case KeyEvent.KEYCODE_3: case KeyEvent.KEYCODE_NUMPAD_3: siteIndex = 2; break;
+                case KeyEvent.KEYCODE_4: case KeyEvent.KEYCODE_NUMPAD_4: siteIndex = 3; break;
+                case KeyEvent.KEYCODE_5: case KeyEvent.KEYCODE_NUMPAD_5: siteIndex = 4; break;
+                case KeyEvent.KEYCODE_6: case KeyEvent.KEYCODE_NUMPAD_6: siteIndex = 5; break;
+                case KeyEvent.KEYCODE_7: case KeyEvent.KEYCODE_NUMPAD_7: siteIndex = 6; break;
+                case KeyEvent.KEYCODE_8: case KeyEvent.KEYCODE_NUMPAD_8: siteIndex = 7; break;
+                case KeyEvent.KEYCODE_9: case KeyEvent.KEYCODE_NUMPAD_9: siteIndex = 8; break;
+            }
+            if (siteIndex >= 0) {
+                openSite(JEWISH_SITES[siteIndex]);
+                return true;
+            }
             WebView web = currentWeb();
-            if (web != null && event.getRepeatCount() == 0) {
-                if (event.getKeyCode() == KeyEvent.KEYCODE_STAR) {
-                    web.zoomOut();
-                    return true;
-                }
-                if (event.getKeyCode() == KeyEvent.KEYCODE_POUND) {
-                    web.zoomIn();
-                    return true;
-                }
+            if (web != null && key == KeyEvent.KEYCODE_STAR) {
+                web.zoomOut();
+                return true;
+            }
+            if (web != null && key == KeyEvent.KEYCODE_POUND) {
+                web.zoomIn();
+                return true;
             }
         }
         return super.dispatchKeyEvent(event);
