@@ -1,73 +1,298 @@
 package com.oilam;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.os.Bundle;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.view.ViewGroup;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.webkit.WebResourceRequest;
-import android.net.Uri;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import java.util.ArrayList;
 
 public class MainActivity extends Activity {
-    private WebView web;
     private LinearLayout root;
-    private static final String[][] SITES = {
-        {"Torah Anytime", "https://www.torahanytime.com/"},
-        {"Mostly Music", "https://mostlymusic.com/"},
-        {"MyZmanim", "https://www.myzmanim.com/"},
-        {"Kol Halashon", "https://www.kolhalashon.com/"},
-        {"OU", "https://www.ou.org/"},
-        {"STAR-K", "https://www.star-k.org/"},
-        {"cRc", "https://www.crcweb.org/"}
+    private LinearLayout toolbar;
+    private FrameLayout browserArea;
+    private TextView homeButton, backButton, forwardButton, tabsButton;
+    private final ArrayList<BrowserTab> tabs = new ArrayList<>();
+    private int activeTab = -1;
+    private static final int MAX_TABS = 6;
+
+    private static class Site {
+        final String name, url, domain;
+        Site(String name, String url, String domain) {
+            this.name = name; this.url = url; this.domain = domain;
+        }
+    }
+
+    private static final Site[] JEWISH_SITES = {
+        new Site("Torah Anytime", "https://www.torahanytime.com/", "torahanytime.com"),
+        new Site("Mostly Music", "https://mostlymusic.com/", "mostlymusic.com"),
+        new Site("MyZmanim", "https://www.myzmanim.com/", "myzmanim.com"),
+        new Site("Kol Halashon", "https://www.kolhalashon.com/en/regularSite/home?English=false", "kolhalashon.com"),
+        new Site("OU", "https://www.ou.org/", "ou.org"),
+        new Site("STAR-K", "https://www.star-k.org/", "star-k.org"),
+        new Site("cRc", "https://www.crcweb.org/newsite/", "crcweb.org"),
+        new Site("Kollel.org", "https://www.kollel.org/", "kollel.org"),
+        new Site("HebrewBooks", "https://www.hebrewbooks.org/", "hebrewbooks.org")
     };
-    private final Set<String> allowed = new HashSet<>(Arrays.asList(
-        "torahanytime.com", "mostlymusic.com", "myzmanim.com", "kolhalashon.com", "ou.org", "star-k.org", "crcweb.org"
-    ));
+
+    private static final Site[] SERVICES = {
+        new Site("Gett", "https://www.gett.com/il", "gett.com"),
+        new Site("Moovit", "https://moovitapp.com/", "moovitapp.com"),
+        new Site("Waze", "https://www.waze.com/", "waze.com"),
+        new Site("Pango", "https://www.pango.co.il/", "pango.co.il")
+    };
+
+    private static class BrowserTab {
+        WebView web;
+        String title = "New tab";
+        BrowserTab(WebView web) { this.web = web; }
+    }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFFF5F1E8);
+        root.setBackgroundColor(Color.WHITE);
         setContentView(root);
-        TextView heading = new TextView(this);
-        heading.setText("OILAM"); heading.setTextSize(24); heading.setGravity(Gravity.CENTER);
-        heading.setTextColor(0xFF263238); heading.setPadding(8, 14, 8, 14);
-        root.addView(heading, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout tabs = new LinearLayout(this); tabs.setOrientation(LinearLayout.HORIZONTAL);
-        tabs.setGravity(Gravity.CENTER); root.addView(tabs, new LinearLayout.LayoutParams(-1, -2));
-        Button home = new Button(this); home.setText("Home"); home.setOnClickListener(v -> showHome()); tabs.addView(home);
-        Button back = new Button(this); back.setText("Back"); back.setOnClickListener(v -> { if (web != null && web.canGoBack()) web.goBack(); else showHome(); }); tabs.addView(back);
-        web = new WebView(this);
-        web.getSettings().setJavaScriptEnabled(true);
-        web.getSettings().setDomStorageEnabled(true);
-        web.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return !isAllowed(request.getUrl());
-            }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return !isAllowed(Uri.parse(url));
+
+        buildToolbar();
+        browserArea = new FrameLayout(this);
+        root.addView(browserArea, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        addTab(true);
+    }
+
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private TextView toolbarButton(String label, int widthDp) {
+        TextView button = new TextView(this);
+        button.setText(label);
+        button.setTextSize(14);
+        button.setTextColor(Color.rgb(35, 48, 58));
+        button.setGravity(Gravity.CENTER);
+        button.setSingleLine(true);
+        button.setPadding(dp(5), 0, dp(5), 0);
+        button.setBackgroundColor(Color.TRANSPARENT);
+        toolbar.addView(button, new LinearLayout.LayoutParams(
+            widthDp == 0 ? 0 : dp(widthDp), ViewGroup.LayoutParams.MATCH_PARENT,
+            widthDp == 0 ? 1f : 0f));
+        return button;
+    }
+
+    private void buildToolbar() {
+        toolbar = new LinearLayout(this);
+        toolbar.setOrientation(LinearLayout.HORIZONTAL);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(4), 0, dp(4), 0);
+        toolbar.setBackgroundColor(Color.rgb(248, 247, 244));
+        root.addView(toolbar, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+
+        homeButton = toolbarButton("⌂ Home", 62);
+        toolbarButton("", 0);
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        nav.setGravity(Gravity.CENTER);
+        toolbar.addView(nav, new LinearLayout.LayoutParams(dp(94), ViewGroup.LayoutParams.MATCH_PARENT));
+        backButton = navButton("‹");
+        forwardButton = navButton("›");
+        nav.addView(backButton, new LinearLayout.LayoutParams(dp(46), ViewGroup.LayoutParams.MATCH_PARENT));
+        nav.addView(forwardButton, new LinearLayout.LayoutParams(dp(46), ViewGroup.LayoutParams.MATCH_PARENT));
+        toolbarButton("", 0);
+        tabsButton = toolbarButton("Tabs 1", 64);
+
+        homeButton.setOnClickListener(v -> showHome());
+        backButton.setOnClickListener(v -> {
+            WebView web = currentWeb();
+            if (web != null && web.canGoBack()) web.goBack();
+        });
+        forwardButton.setOnClickListener(v -> {
+            WebView web = currentWeb();
+            if (web != null && web.canGoForward()) web.goForward();
+        });
+        tabsButton.setOnClickListener(v -> showTabsDialog());
+        updateToolbar();
+    }
+
+    private TextView navButton(String label) {
+        TextView button = new TextView(this);
+        button.setText(label);
+        button.setTextSize(27);
+        button.setTextColor(Color.rgb(35, 48, 58));
+        button.setGravity(Gravity.CENTER);
+        button.setBackgroundColor(Color.TRANSPARENT);
+        return button;
+    }
+
+    private WebView currentWeb() {
+        if (activeTab < 0 || activeTab >= tabs.size()) return null;
+        return tabs.get(activeTab).web;
+    }
+
+    private void addTab(boolean showMenu) {
+        if (tabs.size() >= MAX_TABS) {
+            new AlertDialog.Builder(this).setMessage("You can have up to " + MAX_TABS + " tabs open.")
+                .setPositiveButton("OK", null).show();
+            return;
+        }
+        WebView web = new WebView(this);
+        WebSettings settings = web.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setLoadsImagesAutomatically(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override public void onReceivedTitle(WebView view, String title) {
+                int index = findTab(view);
+                if (index >= 0) {
+                    tabs.get(index).title = (title == null || title.trim().isEmpty()) ? "Website" : title;
+                    updateToolbar();
+                }
             }
         });
-        root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
-        showHome();
+        web.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String scheme = request.getUrl().getScheme();
+                return !( "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme) );
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return !(url.startsWith("https://") || url.startsWith("http://"));
+            }
+        });
+        BrowserTab tab = new BrowserTab(web);
+        tabs.add(tab);
+        browserArea.addView(web, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        switchTab(tabs.size() - 1);
+        if (showMenu) web.loadDataWithBaseURL("https://oilam.local/", homeHtml(),
+            "text/html", "UTF-8", null);
     }
-    private boolean isAllowed(Uri uri) {
-        String host = uri.getHost(); if (host == null) return false;
-        for (String domain : allowed) if (host.equals(domain) || host.endsWith("." + domain)) return true;
-        return false;
+
+    private int findTab(WebView web) {
+        for (int i = 0; i < tabs.size(); i++) if (tabs.get(i).web == web) return i;
+        return -1;
     }
+
+    private void switchTab(int index) {
+        if (index < 0 || index >= tabs.size()) return;
+        activeTab = index;
+        for (int i = 0; i < tabs.size(); i++)
+            tabs.get(i).web.setVisibility(i == index ? View.VISIBLE : View.GONE);
+        updateToolbar();
+    }
+
+    private void showTabsDialog() {
+        ArrayList<String> labels = new ArrayList<>();
+        for (int i = 0; i < tabs.size(); i++) {
+            String name = tabs.get(i).title;
+            labels.add((i == activeTab ? "✓ " : "") + (name.length() > 32 ? name.substring(0, 29) + "..." : name));
+        }
+        labels.add("+ New tab");
+        String[] items = labels.toArray(new String[0]);
+        new AlertDialog.Builder(this).setTitle("Open tabs")
+            .setItems(items, (dialog, which) -> {
+                if (which == tabs.size()) addTab(true);
+                else switchTab(which);
+            })
+            .setNeutralButton("Close current tab", (dialog, which) -> closeCurrentTab())
+            .setNegativeButton("Cancel", null).show();
+    }
+
+    private void closeCurrentTab() {
+        if (tabs.size() <= 1) {
+            WebView web = currentWeb();
+            if (web != null) {
+                web.clearHistory();
+                web.loadDataWithBaseURL("https://oilam.local/", homeHtml(), "text/html", "UTF-8", null);
+                tabs.get(0).title = "Oilam";
+            }
+            updateToolbar();
+            return;
+        }
+        BrowserTab removed = tabs.remove(activeTab);
+        browserArea.removeView(removed.web);
+        removed.web.stopLoading();
+        removed.web.destroy();
+        switchTab(Math.max(0, activeTab - 1));
+    }
+
     private void showHome() {
-        StringBuilder html = new StringBuilder("<html><meta name='viewport' content='width=device-width, initial-scale=1'><body style='font-family:sans-serif;background:#f5f1e8;color:#263238;text-align:center;padding:12px'><h2>Jewish Websites</h2><p>Choose a site</p>");
-        for (String[] site : SITES) html.append("<a href='").append(site[1]).append("' style='display:block;background:#fff;padding:16px;margin:10px;border-radius:10px;color:#263238;text-decoration:none;font-size:18px;border:1px solid #d7cdbb'>").append(site[0]).append("</a>");
-        html.append("</body></html>"); web.loadDataWithBaseURL("https://oilam.local/", html.toString(), "text/html", "UTF-8", null);
+        WebView web = currentWeb();
+        if (web != null) {
+            web.loadDataWithBaseURL("https://oilam.local/", homeHtml(), "text/html", "UTF-8", null);
+            tabs.get(activeTab).title = "Oilam";
+            updateToolbar();
+        }
     }
-    @Override public void onBackPressed() { if (web != null && web.canGoBack()) web.goBack(); else showHome(); }
+
+    private void openSite(Site site) {
+        WebView web = currentWeb();
+        if (web == null) return;
+        tabs.get(activeTab).title = site.name;
+        web.loadUrl(site.url);
+        updateToolbar();
+    }
+
+    private String cardsHtml(Site[] sites) {
+        StringBuilder html = new StringBuilder();
+        for (Site site : sites) {
+            html.append("<a class='tile' href='").append(site.url).append("'>")
+                .append("<img src='https://www.google.com/s2/favicons?domain=")
+                .append(site.domain).append("&sz=128' onerror=\"this.style.display='none'\">")
+                .append("<span>").append(site.name).append("</span></a>");
+        }
+        return html.toString();
+    }
+
+    private String homeHtml() {
+        return "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'>"
+            + "<style>body{margin:0;padding:10px 9px 22px;background:#f5f1e8;color:#263238;font-family:Arial,sans-serif}"
+            + "h2{font-size:17px;margin:8px 3px 9px;font-weight:700} .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}"
+            + ".tile{box-sizing:border-box;min-height:91px;background:#fff;border:1px solid #ddd4c6;border-radius:11px;"
+            + "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:8px 3px;"
+            + "color:#263238;text-decoration:none;text-align:center;font-size:12px;font-weight:600}"
+            + ".tile img{width:34px;height:34px;object-fit:contain;border-radius:7px} .section{margin-bottom:17px}</style>"
+            + "</head><body><section class='section'><h2>Jewish Websites</h2><div class='grid'>"
+            + cardsHtml(JEWISH_SITES) + "</div></section><section class='section'><h2>Services</h2><div class='grid'>"
+            + cardsHtml(SERVICES) + "</div></section></body></html>";
+    }
+
+    private void updateToolbar() {
+        if (tabsButton == null) return;
+        tabsButton.setText("Tabs " + tabs.size());
+        WebView web = currentWeb();
+        boolean canBack = web != null && web.canGoBack();
+        boolean canForward = web != null && web.canGoForward();
+        backButton.setTextColor(canBack ? Color.rgb(35,48,58) : Color.LTGRAY);
+        forwardButton.setTextColor(canForward ? Color.rgb(35,48,58) : Color.LTGRAY);
+    }
+
+    @Override public void onBackPressed() {
+        WebView web = currentWeb();
+        if (web != null && web.canGoBack()) web.goBack();
+        else showHome();
+    }
+
+    @Override protected void onDestroy() {
+        for (BrowserTab tab : tabs) {
+            tab.web.stopLoading();
+            tab.web.destroy();
+        }
+        tabs.clear();
+        super.onDestroy();
+    }
 }
