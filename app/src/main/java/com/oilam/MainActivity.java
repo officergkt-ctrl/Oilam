@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
@@ -141,6 +142,24 @@ public class MainActivity extends Activity {
     private WebView currentWeb() {
         if (activeTab < 0 || activeTab >= tabs.size()) return null;
         return tabs.get(activeTab).web;
+    }
+
+    // Feature-phone keypad zoom: * zooms out and # zooms in.
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            WebView web = currentWeb();
+            if (web != null && event.getRepeatCount() == 0) {
+                if (event.getKeyCode() == KeyEvent.KEYCODE_STAR) {
+                    web.zoomOut();
+                    return true;
+                }
+                if (event.getKeyCode() == KeyEvent.KEYCODE_POUND) {
+                    web.zoomIn();
+                    return true;
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     private void addTab(boolean showMenu) {
