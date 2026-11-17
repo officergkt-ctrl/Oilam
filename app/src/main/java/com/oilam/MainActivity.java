@@ -3,6 +3,8 @@ package com.oilam;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -28,6 +30,10 @@ public class MainActivity extends Activity {
     private final ArrayList<BrowserTab> tabs = new ArrayList<>();
     private int activeTab = -1;
     private static final int MAX_TABS = 6;
+    private boolean numberHintsActive = false;
+    private String numberBuffer = "";
+    private final Handler numberHandler = new Handler(Looper.getMainLooper());
+    private final Runnable selectNumberRunnable = () -> selectNumberHint();
 
     private static class Site {
         final String name, url, domain;
@@ -144,8 +150,8 @@ public class MainActivity extends Activity {
         return tabs.get(activeTab).web;
     }
 
-    // Feature-phone keypad shortcuts: 1-9 open Jewish websites; * / # zoom.
-    // End returns to the icon menu; Back keeps normal browser-back behavior.
+    // Keypad: 1-9 open the nine Jewish sites; 0 toggles numbered link hints.
+    // While hints are on, digit sequences choose a numbered clickable item.
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
             int key = event.getKeyCode();
@@ -153,21 +159,33 @@ public class MainActivity extends Activity {
                 showHome();
                 return true;
             }
-            int siteIndex = -1;
-            switch (key) {
-                case KeyEvent.KEYCODE_1: case KeyEvent.KEYCODE_NUMPAD_1: siteIndex = 0; break;
-                case KeyEvent.KEYCODE_2: case KeyEvent.KEYCODE_NUMPAD_2: siteIndex = 1; break;
-                case KeyEvent.KEYCODE_3: case KeyEvent.KEYCODE_NUMPAD_3: siteIndex = 2; break;
-                case KeyEvent.KEYCODE_4: case KeyEvent.KEYCODE_NUMPAD_4: siteIndex = 3; break;
-                case KeyEvent.KEYCODE_5: case KeyEvent.KEYCODE_NUMPAD_5: siteIndex = 4; break;
-                case KeyEvent.KEYCODE_6: case KeyEvent.KEYCODE_NUMPAD_6: siteIndex = 5; break;
-                case KeyEvent.KEYCODE_7: case KeyEvent.KEYCODE_NUMPAD_7: siteIndex = 6; break;
-                case KeyEvent.KEYCODE_8: case KeyEvent.KEYCODE_NUMPAD_8: siteIndex = 7; break;
-                case KeyEvent.KEYCODE_9: case KeyEvent.KEYCODE_NUMPAD_9: siteIndex = 8; break;
-            }
-            if (siteIndex >= 0) {
-                openSite(JEWISH_SITES[siteIndex]);
+            if (key == KeyEvent.KEYCODE_0 || key == KeyEvent.KEYCODE_NUMPAD_0) {
+                toggleNumberHints();
                 return true;
+            }
+            int digit = -1;
+            switch (key) {
+                case KeyEvent.KEYCODE_1: case KeyEvent.KEYCODE_NUMPAD_1: digit = 1; break;
+                case KeyEvent.KEYCODE_2: case KeyEvent.KEYCODE_NUMPAD_2: digit = 2; break;
+                case KeyEvent.KEYCODE_3: case KeyEvent.KEYCODE_NUMPAD_3: digit = 3; break;
+                case KeyEvent.KEYCODE_4: case KeyEvent.KEYCODE_NUMPAD_4: digit = 4; break;
+                case KeyEvent.KEYCODE_5: case KeyEvent.KEYCODE_NUMPAD_5: digit = 5; break;
+                case KeyEvent.KEYCODE_6: case KeyEvent.KEYCODE_NUMPAD_6: digit = 6; break;
+                case KeyEvent.KEYCODE_7: case KeyEvent.KEYCODE_NUMPAD_7: digit = 7; break;
+                case KeyEvent.KEYCODE_8: case KeyEvent.KEYCODE_NUMPAD_8: digit = 8; break;
+                case KeyEvent.KEYCODE_9: case KeyEvent.KEYCODE_NUMPAD_9: digit = 9; break;
+            }
+            if (digit >= 0) {
+                if (numberHintsActive) {
+                    numberBuffer += digit;
+                    numberHandler.removeCallbacks(selectNumberRunnable);
+                    numberHandler.postDelayed(selectNumberRunnable, 700);
+                    return true;
+                }
+                if (digit <= JEWISH_SITES.length) {
+                    openSite(JEWISH_SITES[digit - 1]);
+                    return true;
+                }
             }
             WebView web = currentWeb();
             if (web != null && key == KeyEvent.KEYCODE_STAR) {
@@ -181,6 +199,53 @@ public class MainActivity extends Activity {
         }
         return super.dispatchKeyEvent(event);
     }
+
+    private void toggleNumberHints() {
+        WebView web = currentWeb();
+        if (web == null) return;
+        numberHintsActive = !numberHintsActive;
+        numberBuffer = "";
+        numberHandler.removeCallbacks(selectNumberRunnable);
+        String script = numberHintsActive ? NUMBER_HINTS_ON_JS : NUMBER_HINTS_OFF_JS;
+        web.evaluateJavascript(script, null);
+    }
+
+    private void selectNumberHint() {
+        if (!numberHintsActive || numberBuffer.isEmpty()) return;
+        String number = numberBuffer;
+        numberBuffer = "";
+        WebView web = currentWeb();
+        if (web != null) web.evaluateJavascript(
+            "window.oilamClickNumber && window.oilamClickNumber(" + number + ");", null);
+    }
+
+    private static final String NUMBER_HINTS_OFF_JS =
+        "(function(){if(window.oilamHintCleanup)window.oilamHintCleanup();})();";
+
+    private static final String NUMBER_HINTS_ON_JS =
+        "(function(){try{" +
+        "if(window.oilamHintCleanup)window.oilamHintCleanup();" +
+        "var items=Array.from(document.querySelectorAll('a,button,input,select,textarea,[role=button],[role=link],[onclick],[tabindex]'));" +
+        "items=items.filter(function(e){var r=e.getBoundingClientRect(),s=getComputedStyle(e);" +
+        "return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&e.getAttribute('aria-hidden')!=='true';});" +
+        "var layer=document.createElement('div');layer.id='oilam-number-hints';" +
+        "layer.style.cssText='position:fixed;inset:0;z-index:2147483647;pointer-events:none;';" +
+        "var badges=[];items.forEach(function(e,i){var b=document.createElement('span');b.textContent=String(i+1);" +
+        "b.style.cssText='position:fixed;background:#111;color:#fff;border:2px solid #fff;border-radius:5px;" +
+        "font:bold 14px Arial;padding:2px 5px;line-height:18px;box-shadow:0 1px 4px #000;';" +
+        "layer.appendChild(b);badges.push({el:e,badge:b});});document.documentElement.appendChild(layer);" +
+        "function place(){badges.forEach(function(x){var r=x.el.getBoundingClientRect();" +
+        "x.badge.style.display=(r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight)?'block':'none';" +
+        "x.badge.style.left=Math.max(0,Math.min(innerWidth-28,r.left))+'px';" +
+        "x.badge.style.top=Math.max(0,Math.min(innerHeight-26,r.top))+'px';});}" +
+        "var timer;function schedule(){clearTimeout(timer);timer=setTimeout(place,60);}place();" +
+        "addEventListener('scroll',schedule,true);addEventListener('resize',schedule);" +
+        "window.oilamClickNumber=function(n){var x=badges[n-1];if(x){x.el.scrollIntoView({block:'center',inline:'nearest'});" +
+        "setTimeout(function(){try{x.el.focus();x.el.click();}catch(e){}},80);}};" +
+        "window.oilamHintCleanup=function(){clearTimeout(timer);removeEventListener('scroll',schedule,true);" +
+        "removeEventListener('resize',schedule);if(layer.parentNode)layer.parentNode.removeChild(layer);" +
+        "window.oilamClickNumber=null;window.oilamHintCleanup=null;};" +
+        "}catch(e){}})();";
 
     private void addTab(boolean showMenu) {
         if (tabs.size() >= MAX_TABS) {
