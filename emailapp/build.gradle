@@ -7,7 +7,11 @@ android {
         applicationId 'com.oilam.gmail'
         minSdk 23
         targetSdk 28
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '2.0'
     }
+}
+
+dependencies {
+    implementation 'com.google.android.gms:play-services-auth:21.4.0'
 }
