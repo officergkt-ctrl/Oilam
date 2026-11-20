@@ -173,7 +173,9 @@ public class MainActivity extends Activity {
             String from = "(unknown sender)", subject = "(no subject)";
             try { Address[] a = m.getFrom(); if (a != null && a.length > 0) from = a[0].toString(); } catch (Exception ignored) {}
             try { if (m.getSubject() != null) subject = m.getSubject(); } catch (Exception ignored) {}
-            addButton(from + "\n" + subject, v -> openMessage(index));
+            String marker = "●";
+            try { marker = m.isSet(Flags.Flag.SEEN) ? "○" : "●"; } catch (Exception ignored) {}
+            addButton(marker + "  " + from + "\n" + subject, "Open email", v -> openMessage(index));
         }
         if (content.getChildCount() > 0) content.getChildAt(1).requestFocus();
     }
@@ -191,7 +193,8 @@ public class MainActivity extends Activity {
                     addText("From: " + from); addText("Date: " + date);
                     addText("Subject: " + subject); addText("");
                     addText(body);
-                    addButton("↩", "Reply", v -> composeReply(from, subject));\n                    addButton("◉", "Mark as unread", v -> markUnread(msg));
+                    addButton("↩", "Reply", v -> composeReply(from, subject));
+                    addButton("◉", "Mark as unread", v -> markUnread(msg));
                     status.setText("Email");
                 });
             } catch (Exception e) { runOnUiThread(() -> showError("Could not open email: " + explain(e))); }
@@ -220,7 +223,22 @@ public class MainActivity extends Activity {
         return "(This email has no readable text body.)";
     }
 
-    private void markUnread(Message selected) {\n        status.setText("Marking unread…");\n        io.execute(() -> {\n            try {\n                Store store = session().getStore("imaps"); store.connect("imap.gmail.com", email, appPassword);\n                String folderName = currentFolder.equals("STARRED") ? "INBOX" : currentFolder;\n                Folder folder = store.getFolder(folderName); folder.open(Folder.READ_WRITE);\n                Message target = folder.getMessage(selected.getMessageNumber());\n                target.setFlag(Flags.Flag.SEEN, false);\n                folder.close(false); store.close();\n                runOnUiThread(() -> { status.setText("Marked unread"); loadFolder(currentFolder); });\n            } catch (Exception e) { runOnUiThread(() -> showError("Could not mark unread: " + explain(e))); }\n        });\n    }\n\n    private void compose() { composeDialog("", ""); }
+    private void markUnread(Message selected) {
+        status.setText("Marking unread…");
+        io.execute(() -> {
+            try {
+                Store store = session().getStore("imaps"); store.connect("imap.gmail.com", email, appPassword);
+                String folderName = currentFolder.equals("STARRED") ? "INBOX" : currentFolder;
+                Folder folder = store.getFolder(folderName); folder.open(Folder.READ_WRITE);
+                Message target = folder.getMessage(selected.getMessageNumber());
+                target.setFlag(Flags.Flag.SEEN, false);
+                folder.close(false); store.close();
+                runOnUiThread(() -> { status.setText("Marked unread"); loadFolder(currentFolder); });
+            } catch (Exception e) { runOnUiThread(() -> showError("Could not mark unread: " + explain(e))); }
+        });
+    }
+
+    private void compose() { composeDialog("", ""); }
     private void composeReply(String to, String subject) { composeDialog(to, subject.startsWith("Re:") ? subject : "Re: " + subject); }
 
     private void composeDialog(String defaultTo, String defaultSubject) {
@@ -262,7 +280,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
         p.bottomMargin = 3; content.addView(b, p);
     }
-    private void addButton(String description, View.OnClickListener click) { addButton("•", description, click); }\n    private void showError(String s) { status.setText(s); Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
+    private void addButton(String description, View.OnClickListener click) { addButton("•", description, click); }
+    private void showError(String s) { status.setText(s); Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
     @Override public boolean onKeyDown(int key, KeyEvent event) {
         if (key == KeyEvent.KEYCODE_DPAD_DOWN || key == KeyEvent.KEYCODE_DPAD_UP) {
             View f = getCurrentFocus(); if (f == null) return super.onKeyDown(key, event);
