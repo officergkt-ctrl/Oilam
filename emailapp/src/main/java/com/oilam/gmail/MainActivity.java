@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
         EditText pass = new EditText(this); pass.setSingleLine(true);
         pass.setHint("16-character App Password"); pass.setInputType(129);
         content.addView(user); content.addView(pass);
-        addButton("Connect", v -> {
+        addButton("✓", "Connect", v -> {
             String u = user.getText().toString().trim();
             String p = pass.getText().toString().replace(" ", "").trim();
             if (!u.contains("@") || p.isEmpty()) { showError("Enter your Gmail address and App Password"); return; }
@@ -121,14 +121,18 @@ public class MainActivity extends Activity {
 
     private void showHome() {
         content.removeAllViews();
-        String[] labels = {"Inbox", "Sent", "Starred", "Compose", "Change account"};
-        for (String label : labels) addButton(label, v -> {
-            if (label.equals("Compose")) compose();
-            else if (label.equals("Change account")) { email = ""; appPassword = ""; showLogin(); }
-            else if (label.equals("Inbox")) loadFolder("INBOX");
-            else if (label.equals("Sent")) loadFolder("[Gmail]/Sent Mail");
-            else loadFolder("STARRED");
-        });
+        String[] labels = {"▣", "➤", "☆", "✎", "⚙"};
+        String[] actions = {"Inbox", "Sent", "Starred", "Compose", "Change account"};
+        for (int i = 0; i < labels.length; i++) {
+            final String action = actions[i];
+            addButton(labels[i], action, v -> {
+                if (action.equals("Compose")) compose();
+                else if (action.equals("Change account")) { email = ""; appPassword = ""; showLogin(); }
+                else if (action.equals("Inbox")) loadFolder("INBOX");
+                else if (action.equals("Sent")) loadFolder("[Gmail]/Sent Mail");
+                else loadFolder("STARRED");
+            });
+        }
         content.getChildAt(0).requestFocus();
     }
 
@@ -162,7 +166,7 @@ public class MainActivity extends Activity {
     private void showMessages(ArrayList<Message> list, String folder) {
         messages.clear(); messages.addAll(list); content.removeAllViews();
         status.setText(folder + " · " + list.size() + " recent messages");
-        addButton("← Menu", v -> showHome());
+        addButton("⌂", "Menu", v -> showHome());
         if (list.isEmpty()) { addText("No messages found."); return; }
         for (int i = 0; i < list.size(); i++) {
             Message m = list.get(i); final int index = i;
@@ -183,11 +187,11 @@ public class MainActivity extends Activity {
                 String body = readBody(msg);
                 runOnUiThread(() -> {
                     content.removeAllViews();
-                    addButton("← Back to " + currentFolder, v -> loadFolder(currentFolder));
+                    addButton("←", "Back to " + currentFolder, v -> loadFolder(currentFolder));
                     addText("From: " + from); addText("Date: " + date);
                     addText("Subject: " + subject); addText("");
                     addText(body);
-                    addButton("Reply", v -> composeReply(from, subject));
+                    addButton("↩", "Reply", v -> composeReply(from, subject));\n                    addButton("◉", "Mark as unread", v -> markUnread(msg));
                     status.setText("Email");
                 });
             } catch (Exception e) { runOnUiThread(() -> showError("Could not open email: " + explain(e))); }
@@ -216,7 +220,7 @@ public class MainActivity extends Activity {
         return "(This email has no readable text body.)";
     }
 
-    private void compose() { composeDialog("", ""); }
+    private void markUnread(Message selected) {\n        status.setText("Marking unread…");\n        io.execute(() -> {\n            try {\n                Store store = session().getStore("imaps"); store.connect("imap.gmail.com", email, appPassword);\n                String folderName = currentFolder.equals("STARRED") ? "INBOX" : currentFolder;\n                Folder folder = store.getFolder(folderName); folder.open(Folder.READ_WRITE);\n                Message target = folder.getMessage(selected.getMessageNumber());\n                target.setFlag(Flags.Flag.SEEN, false);\n                folder.close(false); store.close();\n                runOnUiThread(() -> { status.setText("Marked unread"); loadFolder(currentFolder); });\n            } catch (Exception e) { runOnUiThread(() -> showError("Could not mark unread: " + explain(e))); }\n        });\n    }\n\n    private void compose() { composeDialog("", ""); }
     private void composeReply(String to, String subject) { composeDialog(to, subject.startsWith("Re:") ? subject : "Re: " + subject); }
 
     private void composeDialog(String defaultTo, String defaultSubject) {
@@ -258,7 +262,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
         p.bottomMargin = 3; content.addView(b, p);
     }
-    private void showError(String s) { status.setText(s); Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
+    private void addButton(String description, View.OnClickListener click) { addButton("•", description, click); }\n    private void showError(String s) { status.setText(s); Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
     @Override public boolean onKeyDown(int key, KeyEvent event) {
         if (key == KeyEvent.KEYCODE_DPAD_DOWN || key == KeyEvent.KEYCODE_DPAD_UP) {
             View f = getCurrentFocus(); if (f == null) return super.onKeyDown(key, event);
