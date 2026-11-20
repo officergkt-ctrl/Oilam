@@ -229,7 +229,6 @@ public class MainActivity extends Activity {
         });
     }
 
-    private JSONObject request(String method,String url,String body) throws Exception { return request(method,url,body==null?null:new JSONObject(body)); }
     private JSONObject request(String method,String url,JSONObject body) throws Exception {
         HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
         c.setRequestMethod(method); c.setConnectTimeout(20000); c.setReadTimeout(20000);
