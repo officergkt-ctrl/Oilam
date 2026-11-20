@@ -1,4 +1,4 @@
-name: Build Oilam APK
+name: Build Oilam and Gmail APKs
 on:
   push:
     branches: [ main ]
@@ -15,11 +15,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
-      - name: Build debug APK
+      - name: Build debug APKs
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: Oilam-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: Oilam-and-Gmail-debug-apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            emailapp/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
