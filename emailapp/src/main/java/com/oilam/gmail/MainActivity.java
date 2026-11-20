@@ -230,8 +230,8 @@ public class MainActivity extends Activity {
         EditText body = new EditText(this); body.setHint("Message"); body.setMinLines(4);
         form.addView(to); form.addView(subject); form.addView(body);
         new AlertDialog.Builder(this).setTitle("Compose email").setView(form)
-            .setPositiveButton("Send", (d,w) -> sendMail(to.getText().toString(), subject.getText().toString(), body.getText().toString()))
-            .setNegativeButton("Cancel", null).show();
+            .setPositiveButton("➤", (d,w) -> sendMail(to.getText().toString(), subject.getText().toString(), body.getText().toString()))
+            .setNegativeButton("×", null).show();
     }
 
     private void sendMail(String to, String subject, String body) {
@@ -255,8 +255,8 @@ public class MainActivity extends Activity {
         t.setTextColor(0xFF202124); t.setPadding(6, 7, 6, 7);
         content.addView(t, new LinearLayout.LayoutParams(-1, -2));
     }
-    private void addButton(String label, View.OnClickListener click) {
-        Button b = new Button(this); b.setText(label); b.setAllCaps(false);
+    private void addButton(String icon, String description, View.OnClickListener click) {
+        Button b = new Button(this); b.setText(icon); b.setContentDescription(description); b.setAllCaps(false);
         b.setTextSize(14); b.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         b.setMinHeight(46); b.setFocusable(true); b.setOnClickListener(click);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
