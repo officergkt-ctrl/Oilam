@@ -1,0 +1,49 @@
+name: Build Fake GPS for ZTE Z2335CC
+
+on:
+  push:
+    branches:
+      - fake-gps-zte-2335cc
+    paths:
+      - 'fake GPS/FakeGPS-2.0-ZTE-2335CC.zip'
+      - '.github/workflows/fakegps-zte.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract project
+        shell: bash
+        run: |
+          test -f "fake GPS/FakeGPS-2.0-ZTE-2335CC.zip"
+          mkdir -p build-src
+          unzip -q "fake GPS/FakeGPS-2.0-ZTE-2335CC.zip" -d build-src
+          chmod +x build-src/FakeGPS-2.0/gradlew
+
+      - name: Build debug APK
+        working-directory: build-src/FakeGPS-2.0
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FakeGPS-ZTE-Z2335CC-debug
+          path: build-src/FakeGPS-2.0/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
