@@ -25,3 +25,26 @@ jobs:
             emailapp/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  fakegps:
+    name: Build FakeGPS for ZTE 2335CC
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Check out FakeGPS 2.0 source
+        run: git clone --depth 1 --branch 2.0 https://github.com/xiangtailiang/FakeGPS.git "fake GPS/source"
+      - name: Build FakeGPS debug APK
+        working-directory: fake GPS/source
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FakeGPS-ZTE2335CC-debug
+          path: fake GPS/source/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
